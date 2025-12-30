@@ -1,11 +1,5 @@
-// pages/admin/role-requests.js
-
 // 🔒 AUTH LOCKED – DO NOT MODIFY AUTH LOGIC
 // Admin → Role Requests
-// - View pending role requests
-// - Approve → auto-create subcategory + attach to provider + notify provider
-// - Decline → mark as declined + notify provider
-// - No side effects outside this flow
 
 import { useEffect, useState } from "react";
 import RequireAdmin from "../../components/auth/RequireAdmin";
@@ -18,9 +12,6 @@ export default function AdminRoleRequests() {
   const [loading, setLoading] = useState(true);
   const [processingId, setProcessingId] = useState(null);
 
-  // ─────────────────────────────────────────────
-  // LOAD PENDING ROLE REQUESTS
-  // ─────────────────────────────────────────────
   useEffect(() => {
     loadRequests();
   }, []);
@@ -28,7 +19,7 @@ export default function AdminRoleRequests() {
   async function loadRequests() {
     setLoading(true);
 
-    const { data, error } = await supabase
+    const { data } = await supabase
       .from("provider_role_requests")
       .select(`
         id,
@@ -46,14 +37,11 @@ export default function AdminRoleRequests() {
         service_categories:category_id (
           name
         )
-      )
+      `)
       .eq("status", "pending")
       .order("created_at", { ascending: false });
 
-    if (!error) {
-      setRequests(data || []);
-    }
-
+    setRequests(data || []);
     setLoading(false);
   }
 
@@ -66,15 +54,11 @@ export default function AdminRoleRequests() {
     );
   }
 
-  // ─────────────────────────────────────────────
-  // APPROVE ROLE REQUEST
-  // ─────────────────────────────────────────────
   async function approveRequest(req) {
     if (processingId) return;
     setProcessingId(req.id);
 
     try {
-      // 1️⃣ Check if subcategory already exists
       const { data: existingSub } = await supabase
         .from("service_subcategories")
         .select("id")
@@ -84,9 +68,8 @@ export default function AdminRoleRequests() {
 
       let subcategoryId = existingSub?.id;
 
-      // 2️⃣ If not exists, create it
       if (!subcategoryId) {
-        const { data: newSub, error: subErr } = await supabase
+        const { data: newSub } = await supabase
           .from("service_subcategories")
           .insert({
             category_id: req.category_id,
@@ -96,11 +79,9 @@ export default function AdminRoleRequests() {
           .select("id")
           .single();
 
-        if (subErr) throw subErr;
         subcategoryId = newSub.id;
       }
 
-      // 3️⃣ Attach role to provider (if not already attached)
       const { data: existingService } = await supabase
         .from("provider_services")
         .select("id")
@@ -109,67 +90,60 @@ export default function AdminRoleRequests() {
         .maybeSingle();
 
       if (!existingService) {
-        const { error: psErr } = await supabase
-          .from("provider_services")
-          .insert({
-            provider_id: req.provider_id,
-            subcategory_id: subcategoryId,
-          });
-
-        if (psErr) throw psErr;
+        await supabase.from("provider_services").insert({
+          provider_id: req.provider_id,
+          subcategory_id: subcategoryId,
+        });
       }
 
-      // 4️⃣ Mark request as approved
       await supabase
         .from("provider_role_requests")
         .update({ status: "approved" })
         .eq("id", req.id);
 
-      // 5️⃣ Notify provider (IN-APP)
       await supabase.from("notifications").insert({
         user_id: req.provider_id,
         type: "role",
         title: "Role approved",
-        body: `Your requested role "${req.role_name}" has been approved and added to your profile.`,
+        body:
+          "Your requested role " +
+          req.role_name +
+          " has been approved and added to your profile.",
       });
 
-      // 6️⃣ Refresh list
       await loadRequests();
     } catch (err) {
-      alert("Failed to approve role request.");
       console.error(err);
+      alert("Failed to approve role request.");
     }
 
     setProcessingId(null);
   }
 
-  // ─────────────────────────────────────────────
-  // DECLINE ROLE REQUEST
-  // ─────────────────────────────────────────────
   async function declineRequest(req) {
     if (processingId) return;
     setProcessingId(req.id);
 
     try {
-      // 1️⃣ Mark request as declined
       await supabase
         .from("provider_role_requests")
         .update({ status: "declined" })
         .eq("id", req.id);
 
-      // 2️⃣ Notify provider (IN-APP)
       await supabase.from("notifications").insert({
         user_id: req.provider_id,
         type: "role",
         title: "Role declined",
-        body: `Your requested role "${req.role_name}" was declined by admin.`,
+        body:
+          "Your requested role " +
+          req.role_name +
+          " was declined by admin.",
       });
 
-      // 3️⃣ Refresh list
       await loadRequests();
     } catch (err) {
-      alert("Failed to decline role request.");
       console.error(err);
+      alert("Failed to decline role request.");
     }
 
     setProcessingId(null);
@@ -188,9 +162,9 @@ export default function AdminRoleRequests() {
           ) : requests.length === 0 ? (
             <div className="text-gray-500">No pending role requests.</div>
           ) : (
-            <div className="overflow-x-auto bg-white rounded-xl shadow border border-gray-100">
+            <div className="overflow-x-auto bg-white rounded-xl shadow border">
               <table className="min-w-full text-sm">
-                <thead className="bg-gray-50 text-gray-600">
+                <thead className="bg-gray-50">
                   <tr>
                     <th className="px-4 py-3 text-left">Provider</th>
                     <th className="px-4 py-3 text-left">Email</th>
@@ -202,16 +176,11 @@ export default function AdminRoleRequests() {
                 </thead>
                 <tbody>
                   {requests.map((req) => (
-                    <tr
-                      key={req.id}
-                      className="border-t border-gray-100 hover:bg-gray-50"
-                    >
+                    <tr key={req.id} className="border-t">
                       <td className="px-4 py-3">
                         {getProviderName(req.profiles)}
                       </td>
-                      <td className="px-4 py-3">
-                        {req.profiles?.email || "—"}
-                      </td>
+                      <td className="px-4 py-3">{req.profiles?.email}</td>
                       <td className="px-4 py-3 font-medium">
                         {req.role_name}
                       </td>
@@ -221,21 +190,17 @@ export default function AdminRoleRequests() {
                       <td className="px-4 py-3">
                         {new Date(req.created_at).toLocaleString()}
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-4 py-3 text-right">
                         <div className="flex justify-end gap-2">
                           <button
                             onClick={() => approveRequest(req)}
-                            disabled={processingId === req.id}
-                            className="p-2 rounded-lg bg-green-600 text-white hover:bg-green-700 disabled:opacity-50"
-                            title="Approve"
+                            className="p-2 bg-green-600 text-white rounded"
                           >
                             <Check size={16} />
                           </button>
                           <button
                             onClick={() => declineRequest(req)}
-                            disabled={processingId === req.id}
-                            className="p-2 rounded-lg bg-red-600 text-white hover:bg-red-700 disabled:opacity-50"
-                            title="Decline"
+                            className="p-2 bg-red-600 text-white rounded"
                           >
                             <X size={16} />
                           </button>
