@@ -162,7 +162,7 @@ export default function AdminRoleRequests() {
         user_id: req.provider_id,
         type: "role",
         title: "Role declined",
-        body: `Your requested role “${req.role_name}” was declined by admin.`,
+        body: `Your requested role "${req.role_name}" was declined by admin.`,
       });
 
       // 3️⃣ Refresh list
