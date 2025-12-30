@@ -130,7 +130,7 @@ export default function AdminRoleRequests() {
         user_id: req.provider_id,
         type: "role",
         title: "Role approved",
-        body: `Your requested role “${req.role_name}” has been approved and added to your profile.`,
+        body: `Your requested role "${req.role_name}" has been approved and added to your profile.`,
       });
 
       // 6️⃣ Refresh list
