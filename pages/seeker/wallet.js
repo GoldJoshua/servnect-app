@@ -1,26 +1,27 @@
-// UI LAYOUT ONLY – SAFE
-// No auth, no business logic
+// UI ONLY – SAFE
+// Seeker Wallet Page
+// Sidebar retired
+// Bottom navigation handled by canonical SeekerLayout
 
-import SeekerBottomNav from "../seeker/SeekerBottomNav";
-import SeekerSidebar from "../SeekerSidebar";
+import RequireRole from "../../components/auth/RequireRole";
+import SeekerLayout from "../../components/layouts/SeekerLayout";
 
-export default function SeekerLayout({ children }) {
+export default function SeekerWalletPage() {
   return (
-    <div className="min-h-screen bg-[#eef1f6]">
-      <div className="flex">
-        {/* DESKTOP SIDEBAR */}
-        <aside className="hidden lg:block w-64">
-          <SeekerSidebar />
-        </aside>
+    <RequireRole role="seeker">
+      <SeekerLayout>
+        <div className="p-6">
+          <h1 className="text-2xl font-bold text-[#07102a] mb-4">
+            Wallet
+          </h1>
 
-        {/* MAIN CONTENT */}
-        <main className="flex-1 pb-24">
-          {children}
-        </main>
-      </div>
-
-      {/* MOBILE BOTTOM NAV */}
-      <SeekerBottomNav />
-    </div>
+          <div className="bg-white rounded-xl p-6 shadow">
+            <p className="text-gray-600">
+              Wallet functionality will be enabled soon.
+            </p>
+          </div>
+        </div>
+      </SeekerLayout>
+    </RequireRole>
   );
 }
