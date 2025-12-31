@@ -3,9 +3,10 @@
 // UI changes are allowed. Auth logic must stay in RequireRole.
 //
 // ✅ Paystack-ready subscription UI (Free / Basic / Premium)
-// ✅ Calls backend API route to initialize Paystack checkout
-// ⚠️ Requires an API route to exist: /pages/api/paystack/initiate-subscription.js
+// ✅ Supports MAGIC AUTO-LOGIN from mobile (?token=...)
+// ⚠️ Requires API route: /pages/api/auth/magic-provider-login.js
 
+import crypto from "crypto";
 import { useEffect, useMemo, useState } from "react";
 import RequireRole from "../../components/auth/RequireRole";
 import { supabase } from "../../lib/supabaseClient";
@@ -13,6 +14,89 @@ import { supabase } from "../../lib/supabaseClient";
 import ProviderLayout from "../../components/layouts/ProviderLayout";
 import ProviderHeader from "../../components/provider/ProviderHeader";
 import { Crown, CheckCircle, Sparkles } from "lucide-react";
+
+/* =========================================
+   🔐 MAGIC TOKEN AUTO-LOGIN (SERVER-SIDE)
+   ========================================= */
+export async function getServerSideProps({ query, req, res }) {
+  try {
+    const token = query.token;
+    if (!token) {
+      return { props: {} };
+    }
+
+    const tokenHash = crypto
+      .createHash("sha256")
+      .update(token)
+      .digest("hex");
+
+    const { data: row, error } = await supabase
+      .from("magic_login_tokens")
+      .select("*")
+      .eq("token_hash", tokenHash)
+      .is("used_at", null)
+      .gt("expires_at", new Date().toISOString())
+      .single();
+
+    if (error || !row) {
+      return {
+        redirect: {
+          destination: "/login",
+          permanent: false,
+        },
+      };
+    }
+
+    // Burn token (single-use)
+    await supabase
+      .from("magic_login_tokens")
+      .update({ used_at: new Date().toISOString() })
+      .eq("id", row.id);
+
+    // Create Supabase session (server-side)
+    const { data: sessionData, error: sessionError } =
+      await supabase.auth.admin.createSession({
+        userId: row.profile_id,
+      });
+
+    if (sessionError || !sessionData?.session) {
+      return {
+        redirect: {
+          destination: "/login",
+          permanent: false,
+        },
+      };
+    }
+
+    const accessToken = sessionData.session.access_token;
+    const refreshToken = sessionData.session.refresh_token;
+
+    // Set auth cookies
+    res.setHeader("Set-Cookie", [
+      `sb-access-token=${accessToken}; Path=/; HttpOnly; Secure; SameSite=Lax`,
+      `sb-refresh-token=${refreshToken}; Path=/; HttpOnly; Secure; SameSite=Lax`,
+    ]);
+
+    // Clean redirect (remove token from URL)
+    return {
+      redirect: {
+        destination: "/provider/subscription",
+        permanent: false,
+      },
+    };
+  } catch (_) {
+    return {
+      redirect: {
+        destination: "/login",
+        permanent: false,
+      },
+    };
+  }
+}
+
+/* =========================================
+   CLIENT COMPONENT (UNCHANGED LOGIC)
+   ========================================= */
 
 function ProviderSubscriptionContent() {
   const [name, setName] = useState("Provider");

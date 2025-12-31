@@ -2,6 +2,7 @@
 // This page is protected by RequireRole (provider only).
 // UI changes are allowed. Auth logic must stay in RequireRole.
 
+import crypto from "crypto";
 import { useEffect, useState } from "react";
 import RequireRole from "../../components/auth/RequireRole";
 import { supabase } from "../../lib/supabaseClient";
@@ -12,6 +13,85 @@ import ProviderHeader from "../../components/provider/ProviderHeader";
 import StatCard from "../../components/provider/StatCard";
 import JobRequestCard from "../../components/provider/JobRequestCard";
 import SubscriptionCard from "../../components/provider/SubscriptionCard";
+
+/* ================================
+   🔐 MAGIC TOKEN AUTO-LOGIN (SERVER)
+   ================================ */
+export async function getServerSideProps({ query, req, res }) {
+  try {
+    const token = query.token;
+    if (!token) {
+      return { props: {} };
+    }
+
+    const tokenHash = crypto
+      .createHash("sha256")
+      .update(token)
+      .digest("hex");
+
+    const { data: row, error } = await supabase
+      .from("magic_login_tokens")
+      .select("*")
+      .eq("token_hash", tokenHash)
+      .is("used_at", null)
+      .gt("expires_at", new Date().toISOString())
+      .single();
+
+    if (error || !row) {
+      return {
+        redirect: {
+          destination: "/login",
+          permanent: false,
+        },
+      };
+    }
+
+    await supabase
+      .from("magic_login_tokens")
+      .update({ used_at: new Date().toISOString() })
+      .eq("id", row.id);
+
+    const { data: sessionData, error: sessionError } =
+      await supabase.auth.admin.createSession({
+        userId: row.profile_id,
+      });
+
+    if (sessionError || !sessionData?.session) {
+      return {
+        redirect: {
+          destination: "/login",
+          permanent: false,
+        },
+      };
+    }
+
+    const accessToken = sessionData.session.access_token;
+    const refreshToken = sessionData.session.refresh_token;
+
+    res.setHeader("Set-Cookie", [
+      `sb-access-token=${accessToken}; Path=/; HttpOnly; Secure; SameSite=Lax`,
+      `sb-refresh-token=${refreshToken}; Path=/; HttpOnly; Secure; SameSite=Lax`,
+    ]);
+
+    return {
+      redirect: {
+        destination: "/provider/dashboard",
+        permanent: false,
+      },
+    };
+  } catch (_) {
+    return {
+      redirect: {
+        destination: "/login",
+        permanent: false,
+      },
+    };
+  }
+}
+
+/* ================================
+   CLIENT COMPONENT (UNCHANGED LOGIC)
+   ================================ */
 
 function ProviderDashboardContent() {
   const [name, setName] = useState("");

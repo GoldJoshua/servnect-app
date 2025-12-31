@@ -1,5 +1,3 @@
-// pages/seeker/find.js
-
 import { useEffect, useState } from "react";
 import { supabase } from "../../lib/supabaseClient";
 import { useRouter } from "next/router";
@@ -29,11 +27,17 @@ function FindServicesContent() {
       const uid = auth?.user?.id;
       if (!uid) return;
 
-      const { data: profile } = await supabase
+      const { data: profile, error } = await supabase
         .from("profiles")
         .select("state")
         .eq("id", uid)
         .single();
+
+      if (error) {
+        alert(error.message);
+        setLoading(false);
+        return;
+      }
 
       if (!profile?.state) {
         alert("Please update your state in Settings to find services.");
@@ -61,7 +65,8 @@ function FindServicesContent() {
       });
 
       if (error) {
-        alert("Failed to load categories");
+        console.error("CATEGORIES RPC ERROR:", error);
+        alert(error.message || JSON.stringify(error));
         setLoading(false);
         return;
       }
@@ -73,21 +78,31 @@ function FindServicesContent() {
     loadCategories();
   }, [seekerState]);
 
+  // ─────────────────────────────────────────────
+  // OPEN CATEGORY (FULL RESET)
+  // ─────────────────────────────────────────────
   async function openCategory(category) {
     if (category.providers_count === 0) return;
 
     setSelectedCategory(category);
     setSelectedSubcategory(null);
+    setSubcategories([]);
     setProviders([]);
     setLoading(true);
 
-    const { data, error } = await supabase.rpc("get_subcategories_nearby", {
-      in_category_id: category.category_id,
-      seeker_state: seekerState,
-    });
+    const { data, error } = await supabase.rpc(
+      "get_subcategories_for_seeker",
+      {
+        in_category_id: category.category_id,
+        seeker_state: seekerState,
+      }
+    );
+
+    console.log("RAW SUBCATEGORY DATA FROM RPC:", data);
 
     if (error) {
-      alert("Failed to load subcategories");
+      console.error("SUBCATEGORIES RPC ERROR:", error);
+      alert(error.message || JSON.stringify(error));
       setLoading(false);
       return;
     }
@@ -96,6 +111,9 @@ function FindServicesContent() {
     setLoading(false);
   }
 
+  // ─────────────────────────────────────────────
+  // OPEN SUBCATEGORY
+  // ─────────────────────────────────────────────
   async function openSubcategory(subcat) {
     if (subcat.providers_count === 0) return;
 
@@ -111,7 +129,8 @@ function FindServicesContent() {
     );
 
     if (error) {
-      alert("Failed to load providers");
+      console.error("PROVIDERS RPC ERROR:", error);
+      alert(error.message || JSON.stringify(error));
       setLoading(false);
       return;
     }
@@ -166,9 +185,12 @@ function FindServicesContent() {
         </div>
       )}
 
-      {/* SUBCATEGORIES */}
+      {/* SUBCATEGORIES — 🔑 FORCE REMOUNT */}
       {selectedCategory && !selectedSubcategory && !loading && (
-        <div className="grid md:grid-cols-2 gap-6">
+        <div
+          key={selectedCategory.category_id} // 🔥 THIS IS THE FIX
+          className="grid md:grid-cols-2 gap-6"
+        >
           {subcategories.map((s) => (
             <div
               key={s.subcategory_id}
@@ -193,7 +215,10 @@ function FindServicesContent() {
 
       {/* PROVIDERS */}
       {selectedSubcategory && !loading && (
-        <div className="grid md:grid-cols-2 gap-6">
+        <div
+          key={selectedSubcategory.subcategory_id}
+          className="grid md:grid-cols-2 gap-6"
+        >
           {providers.map((p) => (
             <ProviderDiscoveryCard
               key={p.provider_id}
