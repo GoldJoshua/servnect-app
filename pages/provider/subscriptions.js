@@ -313,9 +313,13 @@ function ProviderSubscriptionContent() {
                   </div>
 
                   <div className="mt-2">
-                    <div className="text-3xl font-extrabold">
-                      ₦{Number(p.price).toLocaleString()}
-                    </div>
+                   <div className="text-3xl font-extrabold">
+  ₦{Number(p.price).toLocaleString()}
+</div>
+
+<div className="text-xs text-gray-500 mt-1">
+  Includes 7.5% VAT
+</div>
                     <div
                       className={`text-sm mt-1 ${
                         p.key === "premium"
