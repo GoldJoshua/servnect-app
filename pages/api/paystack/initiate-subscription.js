@@ -1,6 +1,8 @@
 // pages/api/paystack/initiate-subscription.js
 // 🔒 SERVER ONLY – DO NOT EXPOSE SECRET KEY TO CLIENT
 
+import { supabase } from "../../../lib/supabaseClient";
+
 export default async function handler(req, res) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
@@ -11,6 +13,28 @@ export default async function handler(req, res) {
 
     if (!payment_type || !email || !user_id) {
       return res.status(400).json({ error: "Missing required fields" });
+    }
+
+    // 🔒 PREVENT DUPLICATE ACTIVATION PAYMENTS
+    if (payment_type === "activation") {
+      const { data: profile, error } = await supabase
+        .from("profiles")
+        .select("activation_paid")
+        .eq("id", user_id)
+        .single();
+
+      if (error) {
+        console.error("Activation status check failed:", error);
+        return res.status(500).json({
+          error: "Unable to verify activation status",
+        });
+      }
+
+      if (profile?.activation_paid === true) {
+        return res.status(400).json({
+          error: "Activation fee has already been paid for this account.",
+        });
+      }
     }
 
     /**
@@ -60,7 +84,7 @@ export default async function handler(req, res) {
           callback_url: `${appUrl}${callbackPath || "/payment/processing"}`,
           metadata: {
             user_id,
-            payment_type, // 🔑 THIS IS WHAT WEBHOOK USES
+            payment_type, // 🔑 USED BY WEBHOOK
             vat_included: true,
           },
         }),
