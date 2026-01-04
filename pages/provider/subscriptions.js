@@ -216,12 +216,12 @@ function ProviderSubscriptionContent() {
       const res = await fetch("/api/paystack/initiate-subscription", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          payment_type: planKey,
-          email: user.email,
-          user_id: user.id,
-          callbackPath: "/provider/subscription",
-        }),
+       body: JSON.stringify({
+  payment_type: planKey,
+  email: user.email,
+  user_id: user.id,
+  callbackPath: "/payment/processing",
+}),
       });
 
       const json = await res.json().catch(() => ({}));
