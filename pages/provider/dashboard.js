@@ -175,7 +175,7 @@ function ProviderDashboardContent() {
 
   async function acceptJob(jobId) {
     if (!activationPaid) {
-      alert("Activation required. Please pay the ₦2,500 activation fee.");
+      alert("Activation required. Please pay the ₦2,687.50 activation fee (includes VAT).");
       return;
     }
 
@@ -208,9 +208,40 @@ function ProviderDashboardContent() {
   }
 
   const handlePayActivationFee = async () => {
-    alert("Payment successful! Your account is now activated.");
-    setActivationPaid(true);
-  };
+  try {
+    const { data: auth } = await supabase.auth.getUser();
+    const user = auth?.user;
+
+    if (!user?.email) {
+      alert("Unable to detect your email. Please log in again.");
+      return;
+    }
+
+    const res = await fetch("/api/paystack/initiate-subscription", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        payment_type: "activation",
+        email: user.email,
+        user_id: user.id,
+        callbackPath: "/provider/dashboard",
+      }),
+    });
+
+    const json = await res.json();
+
+    if (!res.ok || !json?.authorizationUrl) {
+      alert(json?.error || "Unable to start activation payment.");
+      return;
+    }
+
+    // ✅ Redirect to Paystack
+    window.location.href = json.authorizationUrl;
+  } catch (err) {
+    console.error(err);
+    alert("Something went wrong starting payment. Please try again.");
+  }
+};
 
   return (
     <ProviderLayout activationPaid={activationPaid}>
@@ -224,15 +255,20 @@ function ProviderDashboardContent() {
                 Activate your provider account
               </div>
               <p className="mt-1 text-red-700">
-                A one-time <b>₦2,500 activation fee</b> is required to access jobs
-                and dashboard features.
-              </p>
-              <button
-                onClick={handlePayActivationFee}
-                className="mt-3 px-4 py-2 bg-red-600 text-white rounded-xl text-sm font-semibold"
-              >
-                Pay ₦2,500 Now
-              </button>
+  A one-time <b>₦2,687.50 activation fee</b> is required to access jobs
+  and dashboard features.
+</p>
+
+<p className="text-xs text-red-600 mt-1">
+  Includes 7.5% VAT
+</p>
+
+<button
+  onClick={handlePayActivationFee}
+  className="mt-3 px-4 py-2 bg-red-600 text-white rounded-xl text-sm font-semibold"
+>
+  Pay ₦2,687.50 Now
+</button>
             </div>
           )}
 
