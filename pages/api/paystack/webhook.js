@@ -1,22 +1,16 @@
 // 🔒 PAYSTACK WEBHOOK – SERVER ONLY (HARDENED)
-// Handles:
-// - Provider activation payment
-// - Subscription upgrades (basic / premium)
-// - Amount → plan verification (SECURE)
-// - Automatic 30-day expiry
-// - Automatic downgrade cleanup
-// - Signature verification (REQUIRED)
 
 import crypto from "crypto";
 import { supabase } from "../../../lib/supabaseClient";
 
 /**
- * 🔐 AMOUNTS (KOBO) — VAT INCLUSIVE
- * ⚠️ SINGLE SOURCE OF TRUTH
+ * 💰 VAT-INCLUSIVE AMOUNTS (KOBO)
  */
-const ACTIVATION_AMOUNT = 268750; // ₦2,687.50
-const BASIC_AMOUNT = 268750;      // ₦2,687.50
-const PREMIUM_AMOUNT = 1075000;   // ₦10,750.00
+const AMOUNTS = {
+  activation: 268750, // ₦2,687.50
+  basic: 322500,      // ₦3,225.00
+  premium: 1075000,   // ₦10,750.00
+};
 
 export const config = {
   api: {
@@ -32,13 +26,13 @@ export default async function handler(req, res) {
   try {
     const rawBody = await getRawBody(req);
 
-    const paystackSignature = req.headers["x-paystack-signature"];
+    const signature = req.headers["x-paystack-signature"];
     const expectedSignature = crypto
       .createHmac("sha512", process.env.PAYSTACK_SECRET_KEY)
       .update(rawBody)
       .digest("hex");
 
-    if (paystackSignature !== expectedSignature) {
+    if (signature !== expectedSignature) {
       console.error("❌ Invalid Paystack signature");
       return res.status(401).end("Invalid signature");
     }
@@ -53,26 +47,27 @@ export default async function handler(req, res) {
     const metadata = data?.metadata || {};
 
     const userId = metadata.user_id;
+    const paymentType = metadata.payment_type;
     const amountPaid = Number(data.amount);
 
-    if (!userId || !amountPaid) {
-      console.error("❌ Missing userId or amount:", { userId, amountPaid });
-      return res.status(400).end("Invalid payload");
+    if (!userId || !paymentType) {
+      console.error("❌ Missing metadata", metadata);
+      return res.status(400).end("Invalid metadata");
     }
 
-    let paymentType = null;
-
-    if (amountPaid === ACTIVATION_AMOUNT) {
-      paymentType = "activation";
-    } else if (amountPaid === BASIC_AMOUNT) {
-      paymentType = "basic";
-    } else if (amountPaid === PREMIUM_AMOUNT) {
-      paymentType = "premium";
-    } else {
-      console.error("❌ Invalid payment amount:", amountPaid);
-      return res.status(400).end("Invalid payment amount");
+    const expectedAmount = AMOUNTS[paymentType];
+    if (amountPaid !== expectedAmount) {
+      console.error("❌ Amount mismatch", {
+        expectedAmount,
+        amountPaid,
+        paymentType,
+      });
+      return res.status(400).end("Amount mismatch");
     }
 
+    /**
+     * 🔓 ACTIVATION
+     */
     if (paymentType === "activation") {
       const { error } = await supabase
         .from("profiles")
@@ -85,6 +80,9 @@ export default async function handler(req, res) {
       }
     }
 
+    /**
+     * ⭐ SUBSCRIPTIONS
+     */
     if (paymentType === "basic" || paymentType === "premium") {
       const expiresAt = new Date(
         Date.now() + 30 * 24 * 60 * 60 * 1000

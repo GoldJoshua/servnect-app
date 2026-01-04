@@ -14,31 +14,21 @@ export default async function handler(req, res) {
     }
 
     /**
-     * VAT CONFIG
-     */
-    const VAT_RATE = 0.075;
-
-    function withVat(baseNaira) {
-      const baseKobo = baseNaira * 100;
-      const vatKobo = Math.round(baseKobo * VAT_RATE);
-      return baseKobo + vatKobo;
-    }
-
-    /**
-     * PAYMENT AMOUNTS (VAT INCLUSIVE — KOBO)
+     * 💰 VAT-INCLUSIVE AMOUNTS (KOBO)
+     * SINGLE SOURCE OF TRUTH
      */
     const PAYMENTS = {
       activation: {
-        amount: withVat(2500), // ₦2,687.50
+        amount: 268750, // ₦2,687.50
         description: "Provider activation fee",
       },
       basic: {
-        amount: withVat(2500), // ₦2,687.50
-        description: "Basic subscription",
+        amount: 322500, // ₦3,225.00
+        description: "Basic subscription (monthly)",
       },
       premium: {
-        amount: withVat(10000), // ₦10,750.00
-        description: "Premium subscription",
+        amount: 1075000, // ₦10,750.00
+        description: "Premium subscription (monthly)",
       },
     };
 
@@ -70,9 +60,8 @@ export default async function handler(req, res) {
           callback_url: `${appUrl}${callbackPath || "/payment/processing"}`,
           metadata: {
             user_id,
-            payment_type,
+            payment_type, // 🔑 THIS IS WHAT WEBHOOK USES
             vat_included: true,
-            vat_rate: VAT_RATE,
           },
         }),
       }
@@ -89,7 +78,7 @@ export default async function handler(req, res) {
       reference: json.data.reference,
     });
   } catch (err) {
-    console.error(err);
+    console.error("Paystack init error:", err);
     return res.status(500).json({ error: "Server error" });
   }
 }
