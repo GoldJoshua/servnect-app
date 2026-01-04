@@ -217,7 +217,7 @@ function ProviderSubscriptionContent() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          plan: planKey,
+          payment_type: planKey,
           email: user.email,
           user_id: user.id,
           callbackPath: "/provider/subscription",
