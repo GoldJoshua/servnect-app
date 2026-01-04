@@ -67,7 +67,7 @@ export default async function handler(req, res) {
           email,
           amount: selectedPayment.amount,
           currency: "NGN",
-          callback_url: `${appUrl}${callbackPath || "/provider/subscription"}`,
+          callback_url: `${appUrl}${callbackPath || "/payment/processing"}`,
           metadata: {
             user_id,
             payment_type,
