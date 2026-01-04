@@ -11,16 +11,16 @@ import crypto from "crypto";
 import { supabase } from "../../../lib/supabaseClient";
 
 /**
- * 🔐 AMOUNTS (KOBO) — SINGLE SOURCE OF TRUTH
- * ⚠️ Change values here ONLY
+ * 🔐 AMOUNTS (KOBO) — VAT INCLUSIVE
+ * ⚠️ SINGLE SOURCE OF TRUTH
  */
-const ACTIVATION_AMOUNT = 500000; // ₦5,000
-const BASIC_AMOUNT = 1000000;     // ₦10,000
-const PREMIUM_AMOUNT = 2000000;   // ₦20,000
+const ACTIVATION_AMOUNT = 268750; // ₦2,687.50
+const BASIC_AMOUNT = 268750;      // ₦2,687.50
+const PREMIUM_AMOUNT = 1075000;   // ₦10,750.00
 
 export const config = {
   api: {
-    bodyParser: false, // REQUIRED for Paystack signature verification
+    bodyParser: false,
   },
 };
 
@@ -30,10 +30,8 @@ export default async function handler(req, res) {
   }
 
   try {
-    // 1️⃣ Read raw body
     const rawBody = await getRawBody(req);
 
-    // 2️⃣ Verify Paystack signature
     const paystackSignature = req.headers["x-paystack-signature"];
     const expectedSignature = crypto
       .createHmac("sha512", process.env.PAYSTACK_SECRET_KEY)
@@ -45,10 +43,8 @@ export default async function handler(req, res) {
       return res.status(401).end("Invalid signature");
     }
 
-    // 3️⃣ Parse event
     const event = JSON.parse(rawBody.toString());
 
-    // Only care about successful charges
     if (event.event !== "charge.success") {
       return res.status(200).json({ received: true });
     }
@@ -57,16 +53,13 @@ export default async function handler(req, res) {
     const metadata = data?.metadata || {};
 
     const userId = metadata.user_id;
-    const amountPaid = Number(data.amount); // KOBO
+    const amountPaid = Number(data.amount);
 
     if (!userId || !amountPaid) {
       console.error("❌ Missing userId or amount:", { userId, amountPaid });
       return res.status(400).end("Invalid payload");
     }
 
-    /**
-     * 4️⃣ DETERMINE PAYMENT TYPE FROM AMOUNT (SECURE)
-     */
     let paymentType = null;
 
     if (amountPaid === ACTIVATION_AMOUNT) {
@@ -80,9 +73,6 @@ export default async function handler(req, res) {
       return res.status(400).end("Invalid payment amount");
     }
 
-    /**
-     * 5️⃣ Handle activation
-     */
     if (paymentType === "activation") {
       const { error } = await supabase
         .from("profiles")
@@ -95,12 +85,9 @@ export default async function handler(req, res) {
       }
     }
 
-    /**
-     * 6️⃣ Handle subscription (basic / premium)
-     */
     if (paymentType === "basic" || paymentType === "premium") {
       const expiresAt = new Date(
-        Date.now() + 30 * 24 * 60 * 60 * 1000 // 30 days
+        Date.now() + 30 * 24 * 60 * 60 * 1000
       );
 
       const { error } = await supabase
@@ -116,11 +103,9 @@ export default async function handler(req, res) {
         return res.status(500).end("Subscription update failed");
       }
 
-      // 🔄 AUTO-DOWNGRADE CLEANUP (NO MANUAL ACTION)
       await supabase.rpc("downgrade_expired_subscriptions");
     }
 
-    // ✅ SUCCESS
     return res.status(200).json({ received: true });
   } catch (err) {
     console.error("❌ Paystack webhook error:", err);
@@ -128,9 +113,6 @@ export default async function handler(req, res) {
   }
 }
 
-/**
- * Helper: Read raw request body
- */
 function getRawBody(req) {
   return new Promise((resolve, reject) => {
     let data = [];

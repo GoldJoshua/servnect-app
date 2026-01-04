@@ -13,17 +13,31 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: "Missing required fields" });
     }
 
+    /**
+     * VAT CONFIG
+     */
+    const VAT_RATE = 0.075;
+
+    function withVat(baseNaira) {
+      const baseKobo = baseNaira * 100;
+      const vatKobo = Math.round(baseKobo * VAT_RATE);
+      return baseKobo + vatKobo;
+    }
+
+    /**
+     * PAYMENT AMOUNTS (VAT INCLUSIVE — KOBO)
+     */
     const PAYMENTS = {
       activation: {
-        amount: 5000 * 100, // ₦5,000
+        amount: withVat(2500), // ₦2,687.50
         description: "Provider activation fee",
       },
       basic: {
-        amount: 10000 * 100, // ₦10,000
+        amount: withVat(2500), // ₦2,687.50
         description: "Basic subscription",
       },
       premium: {
-        amount: 20000 * 100, // ₦20,000
+        amount: withVat(10000), // ₦10,750.00
         description: "Premium subscription",
       },
     };
@@ -57,6 +71,8 @@ export default async function handler(req, res) {
           metadata: {
             user_id,
             payment_type,
+            vat_included: true,
+            vat_rate: VAT_RATE,
           },
         }),
       }
