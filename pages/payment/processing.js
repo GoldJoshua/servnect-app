@@ -6,7 +6,7 @@ export default function PaymentProcessing() {
 
   useEffect(() => {
     const timer = setTimeout(() => {
-      router.replace("/provider/subscription");
+      router.replace("/provider/subscriptions");
     }, 4000);
 
     return () => clearTimeout(timer);
