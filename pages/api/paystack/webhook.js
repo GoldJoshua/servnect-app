@@ -1,7 +1,16 @@
 // 🔒 PAYSTACK WEBHOOK – SERVER ONLY (HARDENED)
 
 import crypto from "crypto";
-import { supabase } from "../../../lib/supabaseClient";
+import { createClient } from "@supabase/supabase-js";
+
+/**
+ * 🔐 SUPABASE SERVICE ROLE CLIENT (SERVER ONLY)
+ * This prevents RLS issues for webhooks
+ */
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_ROLE_KEY
+);
 
 /**
  * 💰 VAT-INCLUSIVE AMOUNTS (KOBO)
