@@ -9,7 +9,10 @@ export default function ProviderSignupEmail() {
   const [loading, setLoading] = useState(false);
 
   function goBack() {
-    router.push("/signup-auth/choose-role");
+    router.push({
+      pathname: "/signup-auth/choose-role",
+      query: router.query, // ✅ preserve ref if present
+    });
   }
 
   function next() {
@@ -22,7 +25,12 @@ export default function ProviderSignupEmail() {
 
     setTimeout(() => {
       setLoading(false);
-      router.push("/signup-auth/provider/step2-password");
+
+      // ✅ forward ALL query params (ref included)
+      router.push({
+        pathname: "/signup-auth/provider/step2-password",
+        query: router.query,
+      });
     }, 400);
   }
 

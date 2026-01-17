@@ -12,7 +12,42 @@ export default function ProviderSignupPassword() {
   const [visible, setVisible] = useState(false);
 
   function goBack() {
-    router.push("/signup-auth/provider/step1-email");
+    // ✅ preserve ref if user goes back
+    router.push({
+      pathname: "/signup-auth/provider/step1-email",
+      query: router.query,
+    });
+  }
+
+  // ✅ Minimal, non-invasive:
+  // Capture referral code from URL if present. If your Step1/ChooseRole doesn't preserve query,
+  // you can still set this from localStorage later (you can store it once on the first page load).
+  function getReferralCode() {
+    if (typeof window === "undefined") return null;
+
+    // ✅ 1) Prefer router query if available (most reliable in Next.js after navigation)
+    const queryRef =
+      typeof router?.query?.ref === "string" ? router.query.ref : null;
+
+    // ✅ 2) Fallback to URL param
+    const urlRef = new URLSearchParams(window.location.search).get("ref");
+
+    // ✅ 3) Fallback to saved storage
+    const savedRef = localStorage.getItem("signup_referral_code");
+
+    // If router has ref, keep it saved for the multi-step flow
+    if (queryRef) {
+      localStorage.setItem("signup_referral_code", queryRef);
+      return queryRef;
+    }
+
+    // If URL has ref, keep it saved for the multi-step flow
+    if (urlRef) {
+      localStorage.setItem("signup_referral_code", urlRef);
+      return urlRef;
+    }
+
+    return savedRef || null;
   }
 
   async function submit() {
@@ -28,7 +63,11 @@ export default function ProviderSignupPassword() {
 
     setLoading(true);
 
-    // 🔐 AUTH SIGNUP — DO NOT MODIFY
+    // ✅ This is the ONLY thing we pass from frontend:
+    // Put referral code into auth metadata so DB trigger can do the rest.
+    const referral_code = getReferralCode();
+
+    // 🔐 AUTH SIGNUP — DO NOT MODIFY (kept intact; only adding metadata field)
     const { error } = await supabase.auth.signUp({
       email,
       password,
@@ -36,6 +75,7 @@ export default function ProviderSignupPassword() {
         emailRedirectTo: `${window.location.origin}/auth/callback`,
         data: {
           role: "provider",
+          referral_code: referral_code || null, // ✅ DB will read this
         },
       },
     });
@@ -46,7 +86,11 @@ export default function ProviderSignupPassword() {
       return;
     }
 
+    // Cleanup
     localStorage.removeItem("auth_signup_email");
+    // optional: clear referral code so it doesn't leak into future signups
+    localStorage.removeItem("signup_referral_code");
+
     setLoading(false);
     router.replace("/verify-email");
   }

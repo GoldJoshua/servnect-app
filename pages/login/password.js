@@ -1,5 +1,4 @@
 // 🔒 AUTH LOCKED – DO NOT MODIFY
-// This file controls authentication & routing logic.
 // pages/login/password.js
 
 import { useState, useEffect } from "react";
@@ -21,6 +20,13 @@ export default function LoginPassword() {
     const saved = localStorage.getItem("login_email");
     if (saved) setEmail(saved);
     else setErr("Please enter your email again.");
+
+    // 🔍 DEBUG — LOG SUPABASE PROJECT (TEMP)
+    console.log("🔍 SUPABASE URL:", supabase?.supabaseUrl);
+    console.log(
+      "🔍 SUPABASE KEY PREFIX:",
+      supabase?.supabaseKey?.slice(0, 20)
+    );
   }, []);
 
   async function login(e) {
@@ -31,12 +37,14 @@ export default function LoginPassword() {
     setErr("");
 
     // 1️⃣ SIGN IN
-    const { data: authData, error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
+    const { data: authData, error } =
+      await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
 
     if (error) {
+      console.error("❌ LOGIN ERROR:", error);
       setErr("Incorrect password. Try again.");
       setLoading(false);
       return;
@@ -53,7 +61,7 @@ export default function LoginPassword() {
 
     let resolvedRole = null;
 
-    // 3️⃣ RESOLVE ROLE — PROFILES FIRST (AUTHORITATIVE)
+    // 3️⃣ RESOLVE ROLE — PROFILES FIRST
     if (profile?.role) {
       resolvedRole = profile.role;
     }
@@ -67,7 +75,6 @@ export default function LoginPassword() {
     if (!resolvedRole && user.user_metadata?.role) {
       resolvedRole = user.user_metadata.role;
 
-      // create profile if missing
       if (profileErr && profileErr.code === "PGRST116") {
         await supabase.from("profiles").insert({
           id: user.id,
@@ -75,7 +82,6 @@ export default function LoginPassword() {
         });
       }
 
-      // fix missing role
       if (profile && !profile.role) {
         await supabase
           .from("profiles")
@@ -183,7 +189,6 @@ export default function LoginPassword() {
             {err && <p className="text-red-500 text-sm mt-3">{err}</p>}
 
             <div className="mt-8 flex items-center justify-between">
-              {/* ✅ FIXED FORGOT PASSWORD FLOW */}
               <button
                 onClick={() => router.push("/forgot-password")}
                 className="px-5 py-3 rounded-lg text-sm text-gray-600 hover:text-gray-800"

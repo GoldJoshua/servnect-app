@@ -25,7 +25,6 @@ export default function ChooseRole() {
         data: { session },
       } = await supabase.auth.getSession();
 
-      // 🔐 RECOVERY SESSION → FORCE RESET PAGE
       if (isRecoverySession()) {
         router.replace("/reset-password");
         return;
@@ -38,7 +37,6 @@ export default function ChooseRole() {
         return;
       }
 
-      // 🛡 Admin bypass
       if (user.email === ADMIN_EMAIL) {
         router.replace("/admin");
         return;
@@ -56,17 +54,34 @@ export default function ChooseRole() {
     window.location.href = "https://servnect.com";
   }
 
+  // ✅ READ ref DIRECTLY from URL at click time
+  function getReferral() {
+    if (typeof window === "undefined") return null;
+    return new URLSearchParams(window.location.search).get("ref");
+  }
+
   function chooseSeeker() {
-    router.push("/signup-auth/seeker/step1-email");
+    const ref = getReferral();
+
+    router.push(
+      ref
+        ? `/signup-auth/seeker/step1-email?ref=${ref}`
+        : "/signup-auth/seeker/step1-email"
+    );
   }
 
   function chooseProvider() {
-    router.push("/signup-auth/provider/step1-email");
+    const ref = getReferral();
+
+    router.push(
+      ref
+        ? `/signup-auth/provider/step1-email?ref=${ref}`
+        : "/signup-auth/provider/step1-email"
+    );
   }
 
   return (
     <div className="min-h-screen flex bg-[#eef1f6]">
-      {/* LEFT */}
       <div className="hidden lg:flex w-1/2 bg-gradient-to-br from-[#f8fafc] to-[#edf2f7] p-12 items-center justify-center relative">
         <div
           className="absolute inset-0 opacity-5"
@@ -88,7 +103,6 @@ export default function ChooseRole() {
         </div>
       </div>
 
-      {/* RIGHT */}
       <div className="w-full lg:w-1/2 flex items-center justify-center px-6 py-16">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
