@@ -42,28 +42,37 @@ serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
 
-    // 1️⃣ Fetch all providers for this agent (include activation_paid)
+    // 1️⃣ Fetch all providers for this agent
     const { data: providers, error: providersError } = await supabase
       .from("providers")
-      .select(`
-        id,
-        created_at,
-        profiles (
-          activation_paid
-        )
-      `)
+      .select("id, created_at")
       .eq("field_agent_id", field_agent_id);
 
     if (providersError) {
       throw providersError;
     }
 
-    const totalProviders = providers.length;
+    const providerIds = (providers || []).map((p) => p.id);
+    const totalProviders = providerIds.length;
 
-    // 2️⃣ Activated providers (SOURCE OF TRUTH: profiles.activation_paid)
-    const activatedProviders = providers.filter(
-      (p) => p.profiles?.activation_paid === true
-    ).length;
+    // 2️⃣ Activated providers (paid activation)
+    let activatedProviders = 0;
+
+    if (providerIds.length > 0) {
+      const { data: payments, error: paymentsError } = await supabase
+        .from("provider_activation_payments")
+        .select("provider_id")
+        .in("provider_id", providerIds)
+        .eq("status", "success");
+
+      if (paymentsError) {
+        throw paymentsError;
+      }
+
+      activatedProviders = new Set(
+        (payments || []).map((p) => p.provider_id)
+      ).size;
+    }
 
     const pendingProviders = totalProviders - activatedProviders;
     const totalCommission = activatedProviders * COMMISSION_PER_PROVIDER;
@@ -72,11 +81,11 @@ serve(async (req) => {
     const todayStart = startOfToday();
     const weekStart = startOfWeek();
 
-    const dailyProviders = providers.filter(
+    const dailyProviders = (providers || []).filter(
       (p) => p.created_at >= todayStart
     ).length;
 
-    const weeklyProviders = providers.filter(
+    const weeklyProviders = (providers || []).filter(
       (p) => p.created_at >= weekStart
     ).length;
 
