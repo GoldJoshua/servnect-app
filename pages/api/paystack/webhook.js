@@ -78,14 +78,46 @@ export default async function handler(req, res) {
      * 🔓 ACTIVATION
      */
     if (paymentType === "activation") {
-      const { error } = await supabase
+      // 1️⃣ Update PROFILE (UI access)
+      const { error: profileError } = await supabase
         .from("profiles")
         .update({ activation_paid: true })
         .eq("id", userId);
 
-      if (error) {
-        console.error("❌ Activation update failed:", error);
+      if (profileError) {
+        console.error("❌ Activation update failed:", profileError);
         return res.status(500).end("Activation update failed");
+      }
+
+      // 2️⃣ Mirror activation into PROVIDERS (commission logic)
+      const { data: provider, error: providerError } = await supabase
+        .from("providers")
+        .select("id")
+        .eq("user_id", userId)
+        .single();
+
+      if (providerError || !provider) {
+        console.error("❌ Provider not found for activation mirror", {
+          userId,
+          providerError,
+        });
+        // IMPORTANT: do NOT fail payment if this happens
+      } else {
+        const { error: providerUpdateError } = await supabase
+          .from("providers")
+          .update({
+            activation_paid: true,
+            activated_at: new Date().toISOString(),
+          })
+          .eq("id", provider.id);
+
+        if (providerUpdateError) {
+          console.error(
+            "❌ Provider activation mirror failed",
+            providerUpdateError
+          );
+          // IMPORTANT: log only, do NOT break UX
+        }
       }
     }
 
